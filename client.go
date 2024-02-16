@@ -631,10 +631,10 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 	var resp *http.Response
 	var attempt int
 	var shouldRetry bool
-	var doErr, respErr, checkErr error
+	var doErr, respErr, checkErr, prepareErr error
 
 	for i := 0; ; i++ {
-		doErr, respErr = nil, nil
+		doErr, respErr, prepareErr = nil, nil, nil
 		attempt++
 
 		// Always rewind the request body when non-nil.
@@ -743,20 +743,22 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 		req.Request = &httpreq
 
 		if err := c.PrepareRetry(req.Request); err != nil {
-			checkErr = err
+			prepareErr = err
 			break
 		}
 	}
 
 	// this is the closest we have to success criteria
-	if doErr == nil && respErr == nil && checkErr == nil && !shouldRetry {
+	if doErr == nil && respErr == nil && checkErr == nil && prepareErr == nil && !shouldRetry {
 		return resp, nil
 	}
 
 	defer c.HTTPClient.CloseIdleConnections()
 
 	var err error
-	if checkErr != nil {
+	if prepareErr != nil {
+		err = prepareErr
+	} else if checkErr != nil {
 		err = checkErr
 	} else if respErr != nil {
 		err = respErr
